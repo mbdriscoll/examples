@@ -118,12 +118,6 @@ int main(void)
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, scene_tex, 0);
     cl_mem scene = clCreateFromGLTexture(ctx, CL_MEM_READ_ONLY,  GL_TEXTURE_2D, 0, scene_tex,  0);
 
-    /** Set constant kernel arguments. */
-    clSetKernelArg(twist, 1, sizeof(cl_mem), &verts_cl);
-    clSetKernelArg(twist, 2, sizeof(cl_mem), &orig_verts_cl);
-    clSetKernelArg(warp, 0, sizeof(cl_mem), &scene);
-    clSetKernelArg(warp, 1, sizeof(cl_mem), &screen);
-
     /** Main loop. */
     for (int frame = 0; !glfwWindowShouldClose(window); frame++)
     {
@@ -131,14 +125,15 @@ int main(void)
         clEnqueueAcquireGLObjects(queue, 1, &verts_cl, 0, NULL, NULL);
         {
             size_t global = 3, local = 3;
-            clSetKernelArg(twist, 0, sizeof(int),   &frame);
+            clSetKernelArg(twist, 0, sizeof(int),    &frame);
+            clSetKernelArg(twist, 1, sizeof(cl_mem), &verts_cl);
+            clSetKernelArg(twist, 2, sizeof(cl_mem), &orig_verts_cl);
             clEnqueueNDRangeKernel(queue, twist, 1, NULL, &global, &local, 0, NULL, NULL);
         }
         clEnqueueReleaseGLObjects(queue, 1, &verts_cl, 0, NULL, NULL);
         clFlush(queue);
 
         /** Render triangle into offscreen framebuffer. */
-        clEnqueueAcquireGLObjects(queue, 1, &verts_cl, 0, NULL, NULL);
         glBindFramebuffer(GL_FRAMEBUFFER, offscreen);
         {
             glViewport(0, 0, width, height);
@@ -167,6 +162,8 @@ int main(void)
         {
             size_t global[] = {width, height},
                     local[] = {16, 16};
+            clSetKernelArg(warp, 0, sizeof(cl_mem), &scene);
+            clSetKernelArg(warp, 1, sizeof(cl_mem), &screen);
             clEnqueueNDRangeKernel(queue, warp, 2, 0, global, local, 0, NULL, NULL);
         }
         clEnqueueReleaseGLObjects(queue, 2, objs, 0, NULL, NULL);
